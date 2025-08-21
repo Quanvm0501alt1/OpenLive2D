@@ -227,9 +227,8 @@ class OpenLive2D:
 # ==============================================================================
 # --- Example Usage ---
 # ==============================================================================
-
-if __name__ == "__main__":
-    # Create some dummy model data with the new structure.
+def main():
+# Create some dummy model data with the new structure.
     dummy_model_data = {
         "head": {"texture": "face.png", "parts": ["eyes", "hair"]},
         "torso": {"texture": "torso.png", "parts": ["chest", "stomach"]},
@@ -270,4 +269,6 @@ if __name__ == "__main__":
     os.remove(ol2d_file)
     os.remove(ml2d_file)
     print("Example files have been cleaned up.")
-
+if __name__ == "__main__":
+    main()
+# Fk pep8
