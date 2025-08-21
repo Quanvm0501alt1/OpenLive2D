@@ -12,7 +12,7 @@ import io
 import shutil
 
 # ==============================================================================
-# --- Constants and Helper Functions ---
+# --- AES-256 aka A bunch of Eatable Shit (j4f) ---
 # ==============================================================================
 
 # In a real application, the key and IV would be managed securely.
@@ -63,7 +63,7 @@ def aes_decrypt(encrypted_data, key, iv):
     return data
 
 # ==============================================================================
-# --- Main Logic for File Operations ---
+# --- Main Logic for mtherfking File Operations ---
 # ==============================================================================
 
 class OpenLive2D:
