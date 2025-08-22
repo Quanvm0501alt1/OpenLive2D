@@ -1,6 +1,6 @@
 # OpenLive2D (WIP)
 ## 💖✨ Better, more perfomance Live2D for Everyone! Support all platform that supports Python, Java (soon) and Rust! (I uses Gemini to code some hard frameworks)
-## **Progress:** Currently works on converting Live2D motion3.json to animations .json
+## **Progress:** Making client.py and render.py
 ### This project uses [Krita](https://krita.org/en/) files and kritapy to read the texture, like .psd in Photoshop, preventing from crack Photoshop =))))
 
 > We are making all entire from the scratch, no using any of Live2D Cubism SDK resources!
