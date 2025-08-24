@@ -84,4 +84,5 @@ To getting started, first:
 - If Windows, then `.venv\Scripts\python.exe client.py`
 - If MacOS, Linux, BSDs, then `.venv/bin/python3 client.py`
 
-##
+## Is it will implement into [moeru-ai/airi](https://github.com/moeru-ai/airi)?
+- Nope, it might possible but it using Vue: 54.6% and TypeScript: 38.2%, making it frickin' hard to implement unless we using Python for JS/TS
