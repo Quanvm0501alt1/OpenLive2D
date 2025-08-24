@@ -1,5 +1,5 @@
 # build from scratch
-import sys, os, shutil, tempfile, traceback, json, subprocess
+import sys, os, shutil, tempfile, traceback, json, subprocess, argparse, zipfile, io
 from direct.showbase import ShowBase
 from direct.task import Task
 from direct.gui.DirectGui import DirectButton, DirectLabel
@@ -42,6 +42,120 @@ class FileHandler:
         else:
             self.iv = iv
         self.aes = AES256(self.key, self.iv)
+
+    def _zip_directory(self, source_dir: str) -> bytes:
+        """Zips a directory and returns the content as bytes."""
+        if not os.path.isdir(source_dir):
+            raise ValueError(f"Source path '{source_dir}' is not a directory.")
+
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, _, files in os.walk(source_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, source_dir)
+                    zipf.write(file_path, arcname)
+
+        return zip_buffer.getvalue()
+
+    def create_ol2d_archive(self, source_dir: str, dest_path: str):
+        """Creates a zipped archive (.ol2d) from a source directory."""
+        print(f"Creating OL2D archive from '{source_dir}' to '{dest_path}'...")
+        if not dest_path.endswith('.ol2d'):
+            print("Warning: destination path does not end with .ol2d")
+
+        zip_data = self._zip_directory(source_dir)
+
+        try:
+            if os.path.dirname(dest_path):
+                os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+            with open(dest_path, 'wb') as f:
+                f.write(zip_data)
+            print(f"Successfully created archive: {dest_path}")
+        except IOError as e:
+            print(f"Error saving file {dest_path}: {e}")
+
+    def create_ml2d_archive(self, source_dir: str, dest_path: str):
+        """Creates a zipped and encrypted archive (.ml2d) from a source directory."""
+        print(f"Creating ML2D archive from '{source_dir}' to '{dest_path}'...")
+        if not dest_path.endswith('.ml2d'):
+            print("Warning: destination path does not end with .ml2d")
+
+        zip_data = self._zip_directory(source_dir)
+        encrypted_data = self.aes.encrypt(zip_data)
+
+        try:
+            if os.path.dirname(dest_path):
+                os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+
+            with open(dest_path, 'wb') as f:
+                f.write(encrypted_data)
+            print(f"Successfully saved encrypted archive: {dest_path}")
+
+            key_path = dest_path + ".key"
+            with open(key_path, 'w') as key_file:
+                key_file.write(f"Key: {self.key.hex()}\n")
+                key_file.write(f"IV: {self.iv.hex()}\n")
+            print(f"Encryption key and IV saved to {key_path}")
+        except IOError as e:
+            print(f"Error saving file {dest_path}: {e}")
+
+    def extract_ol2d_archive(self, archive_path: str, dest_dir: str):
+        """Extracts a .ol2d archive."""
+        print(f"Extracting OL2D archive '{archive_path}' to '{dest_dir}'...")
+        try:
+            with zipfile.ZipFile(archive_path, 'r') as zipf:
+                zipf.extractall(dest_dir)
+            print(f"Successfully extracted to {dest_dir}")
+        except zipfile.BadZipFile:
+            print(f"Error: '{archive_path}' is not a valid zip file.")
+        except FileNotFoundError:
+            print(f"Error: Archive not found at '{archive_path}'")
+        except Exception as e:
+            print(f"An unexpected error occurred during extraction: {e}")
+
+    def load_key_iv_from_file(self, key_path: str):
+        """Loads key and IV from a .key file."""
+        try:
+            with open(key_path, 'r') as f:
+                lines = f.readlines()
+            key_hex = lines[0].split(': ')[1].strip()
+            iv_hex = lines[1].split(': ')[1].strip()
+            self.key = bytes.fromhex(key_hex)
+            self.iv = bytes.fromhex(iv_hex)
+            self.aes = AES256(self.key, self.iv)
+            print(f"Loaded key and IV from {key_path}")
+        except Exception as e:
+            print(f"Error loading key file {key_path}: {e}")
+            raise
+
+    def extract_ml2d_archive(self, archive_path: str, dest_dir: str):
+        """Decrypts and extracts a .ml2d archive."""
+        print(f"Extracting ML2D archive '{archive_path}' to '{dest_dir}'...")
+        key_path = archive_path + ".key"
+        if not os.path.exists(key_path):
+            print(f"Error: Key file not found at '{key_path}'. Cannot decrypt.")
+            return
+
+        try:
+            self.load_key_iv_from_file(key_path)
+
+            with open(archive_path, 'rb') as f:
+                encrypted_data = f.read()
+
+            decrypted_data = self.aes.decrypt(encrypted_data)
+
+            zip_buffer = io.BytesIO(decrypted_data)
+            with zipfile.ZipFile(zip_buffer, 'r') as zipf:
+                zipf.extractall(dest_dir)
+
+            print(f"Successfully extracted to {dest_dir}")
+
+        except FileNotFoundError:
+            print(f"Error: Archive not found at '{archive_path}'")
+        except Exception as e:
+            print(f"An unexpected error occurred during extraction: {e}")
+            traceback.print_exc()
 
     def model_json_generator(self, filename: str, color: str = '#FFFFFF', size: Union[int, float] = 1.0, width: Union[int, float] = 1.0, height: Union[int, float] = 2.0) -> dict:
         """
@@ -345,36 +459,65 @@ class FileHandler:
 
     def save_file(self, filename: str, data: bytes) -> None:
         """
-        Saves data to a file, encrypting it if the extension is .ml2d.
+        Saves data to a file. For creating zipped or encrypted archives,
+        use create_ol2d_archive() or create_ml2d_archive() instead.
 
         Args:
             filename (str): The name of the file to save.
             data (bytes): The data to write to the file.
         """
         _root, ext = os.path.splitext(filename)
-
         try:
             if os.path.dirname(filename):
                 os.makedirs(os.path.dirname(filename), exist_ok=True)
 
-            if ext == '.ml2d':
-                encrypted_data = self.aes.encrypt(data)
-                with open(filename, 'wb') as f:
-                    f.write(encrypted_data)
-                print(f"Successfully saved encrypted file: {filename}")
+            with open(filename, 'wb') as f:
+                f.write(data)
+            if ext == '.json':
+                print(f"Successfully saved JSON file: {filename}")
             else:
-                with open(filename, 'wb') as f:
-                    f.write(data)
-                if ext == '.ol2d':
-                    print(f"Successfully saved file: {filename}")
-                elif ext == '.json':
-                    print(f"Successfully saved JSON file: {filename}")
-                else:
-                    print(f"Successfully saved file: {filename}")
+                print(f"Successfully saved file: {filename}")
         except IOError as e:
             print(f"Error saving file {filename}: {e}")
         except Exception as e:
             print(f"An unexpected error occurred while saving {filename}: {e}")
+
+def main():
+    handler = FileHandler()
+    parser = argparse.ArgumentParser(description="OpenLive2D File Handler")
+    parser.add_argument("--help", "-h", action="help", help="Show this message and exit")
+    parser.add_argument("--create-file", "-c", action="create_file", help="Create files .ml2d or .ol2d")
+    parser.add_argument("--convert-psd-to-kra", "-cpk", action="convert", help="Convert .PSD to .KRA file type")
+    parser.add_argument("--create-part-from-kra", "-cpk2", nargs=2, metavar=('PART_NAME', 'KRA_PATH'), help="Create part JSON and extract logo from .KRA file")
+    parser.add_argument("--example", "-ex", action="store_true", help="Run an example of FileHandler usage")
+    args = parser.parse_args()
+
+    if args.help:
+        parser.print_help()
+        sys.exit(0)
+    elif args.create_file:
+        if args.create_file.endswith('.ml2d') or args.create_file.endswith('.ol2d'):
+            # For simplicity, let's assume we're creating an empty file or a dummy content
+            # In a real scenario, you'd likely pass actual data to save_file
+            file = FileHandler()
+            handler.save_file(args.create_file, )
+        else:
+            print(f"Unsupported file extension for --create-file: {args.create_file}")
+            print("Only .ml2d and .ol2d are supported for direct creation via this argument.")
+            sys.exit(1)
+    elif args.convert:
+        # This action is handled by the convert_psd_to_kra function
+        # The argparse action 'convert' is a placeholder, it needs a value
+        # to know which file to convert.
+        print("Please provide the path to the PSD file to convert, e.g., --convert-psd-to-kra my_image.psd")
+        sys.exit(1)
+    elif args.create_part_from_kra:
+        part_name, kra_path = args.create_part_from_kra
+        handler.create_part_from_kra(part_name, kra_path)
+    elif args.example:
+        _example()
+    else:
+        print("No valid arguments provided. Use --help to see available options.")
 
 def _example():
     # Example Usage
@@ -393,27 +536,41 @@ def _example():
         json.dump(model_structure, f, indent=2)
     print(f"Successfully created model definition: {model_json_path}")
 
-    # 2. Save dummy model data
-    dummy_data = b"This is some model data that will be saved."
-    handler.save_file("model.ol2d", dummy_data)
-    handler.save_file("model.ml2d", dummy_data)
+    # 2. Create and extract .ol2d (zip only) and .ml2d (zip + encrypt) archives
+    source_dir = "my_model_source"
+    if not os.path.exists(source_dir):
+        os.makedirs(source_dir)
+    with open(os.path.join(source_dir, "file1.txt"), "w") as f:
+        f.write("hello")
+    with open(os.path.join(source_dir, "file2.txt"), "w") as f:
+        f.write("world")
+    os.makedirs(os.path.join(source_dir, "subdir"), exist_ok=True)
+    with open(os.path.join(source_dir, "subdir", "file3.txt"), "w") as f:
+        f.write("inside subdir")
 
-    # 3. Decrypt and verify
-    print(f"Loading Live2D model from: model.ol2d")
-    with open("model.ol2d", "rb") as f:
-        ol2d_data = f.read()
-        assert ol2d_data == dummy_data
+    print("\n--- Testing .ol2d (zip only) ---")
+    ol2d_path = os.path.join(model_dir, "my_model.ol2d")
+    extract_ol2d_dir = "extracted_ol2d"
+    handler.create_ol2d_archive(source_dir, ol2d_path)
+    handler.extract_ol2d_archive(ol2d_path, extract_ol2d_dir)
+    print(f"Contents of {extract_ol2d_dir}: {os.listdir(extract_ol2d_dir)}")
+    print(f"Contents of {os.path.join(extract_ol2d_dir, 'subdir')}: {os.listdir(os.path.join(extract_ol2d_dir, 'subdir'))}")
 
-    print(f"Decrypting and loading Live2D model from: model.ml2d")
-    try:
-        with open("model.ml2d", "rb") as f:
-            encrypted_data = f.read()
-        decrypted_data = handler.aes.decrypt(encrypted_data)
-        assert decrypted_data == dummy_data
-        print("Decryption successful!")
-    except Exception as e:
-        print(f"Decryption failed: {e}")
-        traceback.print_exc()
+    print("\n--- Testing .ml2d (zip + encrypt) ---")
+    ml2d_path = os.path.join(model_dir, "my_secure_model.ml2d")
+    extract_ml2d_dir = "extracted_ml2d"
+    handler.create_ml2d_archive(source_dir, ml2d_path)
+
+    # Create a new handler to simulate loading from scratch with a key file
+    new_handler = FileHandler()
+    new_handler.extract_ml2d_archive(ml2d_path, extract_ml2d_dir)
+    print(f"Contents of {extract_ml2d_dir}: {os.listdir(extract_ml2d_dir)}")
+    print(f"Contents of {os.path.join(extract_ml2d_dir, 'subdir')}: {os.listdir(os.path.join(extract_ml2d_dir, 'subdir'))}")
+
+    # Cleanup archive example files
+    shutil.rmtree(source_dir)
+    shutil.rmtree(extract_ol2d_dir)
+    shutil.rmtree(extract_ml2d_dir)
 
     # 4. Create part definitions and extract assets from KRA files
     #    (This is a demonstration and requires a dummy .kra file to exist)
@@ -467,4 +624,4 @@ def _example():
         handler.save_file(modified_anim_path, json.dumps(modified_anim_data, indent=2).encode('utf-8'))
 
 if __name__ == '__main__':
-    _example()
+    main()
