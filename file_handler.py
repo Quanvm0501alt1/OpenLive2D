@@ -157,6 +157,53 @@ class FileHandler:
             print(f"An unexpected error occurred during extraction: {e}")
             traceback.print_exc()
 
+    def package(self, folder_name: str, destination_file: str):
+        """
+        Packages a directory into an .ol2d or .ml2d archive.
+
+        Args:
+            folder_name (str): The source directory to package.
+            destination_file (str): The path for the output archive.
+                                    Must end in .ol2d or .ml2d.
+        """
+        if not os.path.isdir(folder_name):
+            print(f"Error: Source directory '{folder_name}' not found.")
+            return
+
+        if destination_file.endswith('.ol2d'):
+            self.create_ol2d_archive(folder_name, destination_file)
+        elif destination_file.endswith('.ml2d'):
+            self.create_ml2d_archive(folder_name, destination_file)
+        else:
+            print(f"Error: Unsupported destination file extension for '{destination_file}'. Use .ol2d or .ml2d.")
+
+    def unpackage_ol2d(self, file_arg: str):
+        """
+        Extracts a .ol2d archive to a directory with the same basename.
+
+        Args:
+            file_arg (str): The path to the .ol2d archive.
+        """
+        dest_dir = os.path.splitext(file_arg)[0]
+        if not dest_dir:
+            dest_dir = file_arg + "_extracted"
+        self.extract_ol2d_archive(file_arg, dest_dir)
+
+    def unpackage_ml2d(self, file_arg: str):
+        """
+        Decrypts and extracts a .ml2d archive.
+
+        It expects a corresponding .key file to be present.
+        The archive is extracted to a directory with the same basename.
+
+        Args:
+            file_arg (str): The path to the .ml2d archive.
+        """
+        dest_dir = os.path.splitext(file_arg)[0]
+        if not dest_dir:
+            dest_dir = file_arg + "_extracted"
+        self.extract_ml2d_archive(file_arg, dest_dir)
+
     def model_json_generator(self, filename: str, color: str = '#FFFFFF', size: Union[int, float] = 1.0, width: Union[int, float] = 1.0, height: Union[int, float] = 2.0) -> dict:
         """
         Generates the structure for a model.json file.
@@ -485,39 +532,35 @@ class FileHandler:
 def main():
     handler = FileHandler()
     parser = argparse.ArgumentParser(description="OpenLive2D File Handler")
-    parser.add_argument("--help", "-h", action="help", help="Show this message and exit")
-    parser.add_argument("--create-file", "-c", action="create_file", help="Create files .ml2d or .ol2d")
-    parser.add_argument("--convert-psd-to-kra", "-cpk", action="convert", help="Convert .PSD to .KRA file type")
+    parser.add_argument("--create-file", "-c", help="Create an empty .ml2d or .ol2d file.")
+    parser.add_argument("--convert-psd-to-kra", help="Convert .PSD to .KRA file type.")
     parser.add_argument("--create-part-from-kra", "-cpk2", nargs=2, metavar=('PART_NAME', 'KRA_PATH'), help="Create part JSON and extract logo from .KRA file")
+    parser.add_argument("--package", "-p", nargs=2, metavar=('SOURCE_DIR', 'DEST_FILE'), help="Package a directory into a .ml2d or .ol2d archive.")
     parser.add_argument("--example", "-ex", action="store_true", help="Run an example of FileHandler usage")
+    parser.add_argument("--version", "-v", action="version", version="FileHandler 1.0")
     args = parser.parse_args()
 
-    if args.help:
-        parser.print_help()
-        sys.exit(0)
-    elif args.create_file:
+    if args.create_file:
         if args.create_file.endswith('.ml2d') or args.create_file.endswith('.ol2d'):
-            # For simplicity, let's assume we're creating an empty file or a dummy content
-            # In a real scenario, you'd likely pass actual data to save_file
-            file = FileHandler()
-            handler.save_file(args.create_file, )
+            handler.save_file(args.create_file, b"") # Create empty file
+            print(f"Created empty file: {args.create_file}")
         else:
             print(f"Unsupported file extension for --create-file: {args.create_file}")
             print("Only .ml2d and .ol2d are supported for direct creation via this argument.")
             sys.exit(1)
-    elif args.convert:
-        # This action is handled by the convert_psd_to_kra function
-        # The argparse action 'convert' is a placeholder, it needs a value
-        # to know which file to convert.
-        print("Please provide the path to the PSD file to convert, e.g., --convert-psd-to-kra my_image.psd")
-        sys.exit(1)
+    elif args.convert_psd_to_kra:
+        handler.convert_psd_to_kra(args.convert_psd_to_kra)
     elif args.create_part_from_kra:
         part_name, kra_path = args.create_part_from_kra
         handler.create_part_from_kra(part_name, kra_path)
+    elif args.package:
+        source_dir, dest_file = args.package
+        handler.package(source_dir, dest_file)
     elif args.example:
         _example()
     else:
-        print("No valid arguments provided. Use --help to see available options.")
+        parser.print_help()
+        print("\nNo valid arguments provided. Use --help to see available options.")
 
 def _example():
     # Example Usage
