@@ -4,41 +4,49 @@ import os
 import sys
 import logging
 import argparse
+import subprocess
+from direct.Showbase.ShowBase import ShowBase
+from panda3d.core import WindowProperties, loadPrcFileData
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+class RenderApp(ShowBase):
+    def __init__(self, args):
+        # Configure Panda3D settings
+        loadPrcFileData('', 'window-type offscreen')
+        loadPrcFileData('', 'audio-library-name null')
+        loadPrcFileData('', 'framebuffer-multisample 1')
+        loadPrcFileData('', 'multisamples 4')
+
+        super().__init__()
+
+        # Set window properties
+        props = WindowProperties()
+        props.setSize(args.width, args.height)
+        self.win.requestProperties(props)
+
+        # Load the model
+        self.model = self.loader.loadModel(args.model)
+        self.model.reparentTo(self.render)
+
+        # Set camera position
+        self.camera.setPos(0, -10, 0)
+        self.camera.lookAt(0, 0, 0)
+
+        # Render and save the image
+        self.taskMgr.add(self.render_task, "RenderTask")
+        self.output_path = args.output
+
+    def render_task(self, task):
+        # Render the scene to a texture
+        tex = self.win.getScreenshot()
+        tex.write(self.output_path)
+        logging.info(f"Rendered image saved to {self.output_path}")
+        
+        # Exit the application
+        sys.exit(0)
 def main():
-    parser = argparse.ArgumentParser(description="O2D Renderer")
-    parser.add_argument("--input", "-i", required=True, help="Input file path (e.g., .o2d, .json)")
-    parser.add_argument("--output", "-o", help="Output directory for rendered files")
-    parser.add_argument("--format", "-f", default="png", help="Output format (e.g., png, jpg, svg)")
-    parser.add_argument("--resolution", "-r", type=int, default=1080, help="Output resolution (e.g., 1080 for 1080p)")
-    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose logging")
-
-    args = parser.parse_args()
-
-    if args.verbose:
-        logging.getLogger().setLevel(logging.DEBUG)
-
-    logging.info(f"Starting O2D Renderer with input: {args.input}")
-    logging.info(f"Output format: {args.format}, Resolution: {args.resolution}")
-
-    if not os.path.exists(args.input):
-        logging.error(f"Input file not found: {args.input}")
-        sys.exit(1)
-
-    # Placeholder for rendering logic
-    logging.info("Rendering logic will be implemented here.")
-    logging.info("This is a test run of the argument parsing and basic setup.")
-
-    if args.output:
-        os.makedirs(args.output, exist_ok=True)
-        logging.info(f"Output directory set to: {args.output}")
-    else:
-        logging.info("No output directory specified. Output will be handled internally or default.")
-
-    logging.info("O2D Renderer finished.")
-
+    pass
 if __name__ == "__main__":
     main()
