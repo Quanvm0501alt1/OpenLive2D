@@ -5,6 +5,7 @@ import sys
 import logging
 import argparse
 import subprocess
+import datetime
 from direct.Showbase.ShowBase import ShowBase
 from panda3d.core import WindowProperties, loadPrcFileData
 
@@ -42,11 +43,30 @@ class RenderApp(ShowBase):
         # Render the scene to a texture
         tex = self.win.getScreenshot()
         tex.write(self.output_path)
-        logging.info(f"Rendered image saved to {self.output_path}")
         
+        logging.info(f"Rendered image saved to {self.output_path}")
+        # Set up a green background
+        self.setBackgroundColor(0, 1, 0, 1) # RGB A: Green
         # Exit the application
         sys.exit(0)
 def main():
-    pass
+    render = RenderApp()
+    parser = argparse.ArgumentParser(description="Render a 3D model to an image.")
+    parser.add_argument('--model', type=str, required=True, help='Path to the 3D model file.')
+    parser.add_argument('--width', type=int, default=800, help='Width of the output image.')
+    parser.add_argument('--height', type=int, default=600, help='Height of the output image.')
+    parser.add_argument('--example', action='example', help='Use example model and output path.')
+    parser.add_argument('--output', type=str, required=True, help='Path to save the output image.')
+    args = parser.parse_args()
+
+    if args.example:
+        args.model = "path/to/your/example.bam"  # Replace with a valid example model path
+        args.output = "output_example.png"
+
+    app = RenderApp(args)
+    app.run()
+
+    if datetime.datetime.now() == datetime.datetime(month=8, day=31):
+        print(":) happy birthday miku")
 if __name__ == "__main__":
     main()
