@@ -60,7 +60,7 @@ def main():
     args = parser.parse_args()
 
     if args.example:
-        args.model = "path/to/your/example.bam"  # Replace with a valid example model path
+        args.model = str(input("Type ur ol2d file plz wtf: "))
         args.output = "output_example.png"
 
     app = RenderApp(args)
